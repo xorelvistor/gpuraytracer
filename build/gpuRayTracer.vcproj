@@ -61,7 +61,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="SDL.lib SDLmain.lib"
+				AdditionalDependencies="SDL.lib SDLmain.lib opengl32.lib"
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="$(SolutionDir)..\lib\SDL"
 				IgnoreDefaultLibraryNames="msvcrt.lib"
@@ -89,6 +89,7 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
+				CommandLine="xcopy /y $(SolutionDir)..\build\dlls\*.dll $(SolutionDir)..\bin\$(ConfigurationName)&#x0D;&#x0A;xcopy /y $(SolutionDir)..\build\fonts\*.ttf $(SolutionDir)..\bin\$(ConfigurationName)\fonts\"
 			/>
 		</Configuration>
 		<Configuration
@@ -137,7 +138,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="SDL.lib SDLmain.lib"
+				AdditionalDependencies="SDL.lib SDLmain.lib opengl32.lib"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="$(SolutionDir)..\lib\SDL"
 				GenerateDebugInformation="true"
@@ -166,6 +167,7 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
+				CommandLine="xcopy /y $(SolutionDir)..\build\dlls\*.dll $(SolutionDir)..\bin\$(ConfigurationName)&#x0D;&#x0A;xcopy /y $(SolutionDir)..\build\fonts\*.ttf $(SolutionDir)..\bin\$(ConfigurationName)\fonts\"
 			/>
 		</Configuration>
 	</Configurations>
