@@ -1,86 +1,37 @@
-#include <cmath>
-#include <math.h>
-#include <iostream>
-#include <SDL.h>
-#include <SDL_opengl.h>
+#include "Common.h"
+#include "Scene.h"
 
 using namespace std;
-
-//*****************************************************************************
-// STRUCTURES
-//*****************************************************************************
-struct Colour
-{
-	float r, g, b;
-	Colour():r(0),g(0),b(0) {}
-};
-
-struct Vector3
-{
-	float x, y, z;
-
-	Vector3():x(0),y(0),z(0) {}
-	Vector3(float _x, float _y, float _z):x(_x),y(_y),z(_z) {}
-
-	Vector3 operator+(const Vector3& v) const {return Vector3(x+v.x, y+v.y, z+v.z);}
-	Vector3 operator-(const Vector3& v) const {return Vector3(x-v.x, y-v.y, z-v.z);}
-	Vector3 operator*(const Vector3& v) const {return Vector3(x*v.x, y*v.y, z*v.z);}
-	Vector3 operator+(const float v) const {return Vector3(x+v, y+v, z+v);}
-	Vector3 operator-(const float v) const {return Vector3(x-v, y-v, z-v);}
-	Vector3 operator*(const float v) const {return Vector3(x*v, y*v, z*v);}
-	Vector3 operator/(const float v) const {return Vector3(x/v, y/v, z/v);}
-
-	float   Normalize()
-	{
-		float l = sqrt(x*x+y*y+z*z);
-		float il = 1.0f / l;
-		x*=il; y*=il; z*=il;
-		return l;
-	}
-	float   Dot(const Vector3& v) const
-	{
-		return x*v.x + y*v.y + z*v.z;
-	}
-};
-
-Vector3   Normalize(const Vector3& v)
-{
-	float l = 1.0f / sqrt(v.x*v.x+v.y*v.y+v.z*v.z);
-	return Vector3(v.x*l,v.y*l,v.z*l);
-}
-
-struct Ray
-{
-	Vector3 pos, dir;
-	Ray(Vector3 p, Vector3 d):pos(p),dir(d) {}
-};
 
 //*****************************************************************************
 // INSTANCE VARIABLES
 //*****************************************************************************
 
 // Tracer variables
-bool		running = true;
-GLint		screenWidth = 1024;
-GLint		screenHeight = 768;
-GLint		screenBitDepth = 32;
+bool			running = true;
+GLuint			maxDepth = 1;
+GLuint			pboId;
+GLuint			screenWidth = 1024;
+GLuint			screenHeight = 768;
+GLuint			screenBitDepth = 32;
+Scene*			scene = NULL;
 
 // OpenGL variables
-GLuint		textures;
-Colour		*pixels;
+GLuint			textures;
+GLubyte*		buffer;
 
 // SDL variables
-SDL_Event	event;
-SDL_Surface	*screen;
+SDL_Event		event;
+SDL_Surface*	screen;
 
 // FPS variables
-int			fpsUpdateRate = 100; // FPS update rate (ms)
-double		fpsCurrent = 0.0;
-double		fpsAverage = 0.0;
-int			framesSinceStart = 0;	
-int			framesSinceLast = 0;
-int			timeStart = 0;
-int			timeLast = 0;
+int				fpsUpdateRate = 100; // FPS update rate (ms)
+double			fpsCurrent = 0.0;
+double			fpsAverage = 0.0;
+int				framesSinceStart = 0;	
+int				framesSinceLast = 0;
+int				timeStart = 0;
+int				timeLast = 0;
 
 //*****************************************************************************
 // METHODS
@@ -91,15 +42,32 @@ int			timeLast = 0;
 //************************************
 bool initializeOpenGL() 
 {
-	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-	SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
-	SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
-	SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
-	SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+	// Initialise GLEW
+	GLenum status = glewInit();
+	if (status != GLEW_OK)
+	{
+		fprintf(stderr, "ERROR: %s\n", glewGetErrorString(status));
+	}
 
-	glClearColor(0,0,0,0);
-	glGenTextures(1, &textures);
+	// OpenGL Settings
+	glClearColor(0, 0, 0, 1);
+	glShadeModel(GL_FLAT);
 	glEnable(GL_TEXTURE_2D);
+
+	// Setup PBO
+	glGenBuffers(1, &pboId);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, screenWidth, screenHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+
+	// No borders  
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);  
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);  
+
+	// No bilinear filtering of texture  
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);  
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);  
+
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboId); // Bind PBO
+	glBufferData(GL_PIXEL_UNPACK_BUFFER, screenWidth * screenHeight * 3, 0, GL_STREAM_DRAW); // Initialise PBO
 
 	return (glGetError() != GL_NO_ERROR);
 }
@@ -155,7 +123,7 @@ void handleKeyDown(SDLKey key)
 // Method:    handleEvent - handle the given event
 // Parameter: SDL_Event *event - the event to be handled
 //************************************
-void handleEvent(SDL_Event *event) 
+void handleEvent(SDL_Event* event) 
 {
 	switch( event->type )
 	{
@@ -188,7 +156,7 @@ void shutdown()
 //************************************
 void waitForEnter() 
 {
-	printf("\n\nPress [Enter] to continue...");
+	printf("\n\nPress [Enter] to continue...\n");
 	std::cin.get();
 }
 
@@ -215,19 +183,47 @@ void updateStats()
 	SDL_WM_SetCaption(captionBuffer, NULL);
 }
 
+Colour trace (Ray r, GLuint depth)
+{
+	return Colour(0, 255, 0);
+}
+
 //************************************
 // Method:    rayTrace - ray trace
 //************************************
-void rayTrace()
+void rayTrace(GLubyte* buffer)
 {
-	for(int y = 0; y < screenHeight; y++)
+	Camera* camera = scene->camera;
+	Vector3 origin = camera->position;
+
+	float x = origin.x;
+	float y = origin.y;
+	float z = origin.z;
+
+	float left = camera->spXLeft;
+	float right = camera->spXRight;
+	float top = camera->spYTop;
+	float bottom = camera->spYBottom;
+
+	float deltaX = (right - left) / screenWidth;
+	float deltaY = (top - bottom) / screenHeight;
+
+	for(GLuint y = 0; y < screenHeight; y++)
 	{
-		for(int x = 0; x < screenWidth; x++)
+		for(GLuint x = 0; x < screenWidth; x++)
 		{
-			Colour * pixel = &(pixels[y * screenWidth + x]);
-			pixel->r = fmod(pixel->r + .01f,1);
-			pixel->g = fmod(pixel->g + .02f,1);
-			pixel->b = fmod(pixel->b + .03f,1);
+			float xpos = left + x * deltaX;
+			float ypos = bottom + y * deltaY;
+			float zpos = 0;
+
+			Vector3 direction = Vector3(xpos, ypos, zpos) - origin;
+			direction.Normalize();
+
+			Colour result = trace(Ray(origin, direction), 0);
+
+			buffer[3 * (y * screenWidth + x)] = result.red;
+			buffer[3 * (y * screenWidth + x) + 1] = result.green;
+			buffer[3 * (y * screenWidth + x) + 2] = result.blue;
 		}
 	}
 }
@@ -237,21 +233,30 @@ void rayTrace()
 //************************************
 void render() 
 {
-	rayTrace();
+	// Bind PBO
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboId);
 
-	glBindTexture(GL_TEXTURE_2D, textures);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F_ARB, screenWidth, screenHeight, 0, GL_RGB, GL_FLOAT, pixels);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	// Lock Buffer
+	buffer = (GLubyte *) glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
+
+	// Trace the scene
+	rayTrace(buffer);
+
+	// Unlock Buffer
+	glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, screenWidth, screenHeight, GL_RGB, GL_UNSIGNED_BYTE, 0);
+
+	// Output Buffer
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glBegin(GL_QUADS);
-		glTexCoord2f(0.0f,0.0f); glVertex2f(-1.0f,-1.0f);
-		glTexCoord2f(1.0f,0.0f); glVertex2f( 1.0f,-1.0f);
-		glTexCoord2f(1.0f,1.0f); glVertex2f( 1.0f, 1.0f);
-		glTexCoord2f(0.0f,1.0f); glVertex2f(-1.0f, 1.0f);
+		glTexCoord2f(0.0f, 0.0f); glVertex2f(-1.0f, -1.0f);
+		glTexCoord2f(1.0f, 0.0f); glVertex2f( 1.0f, -1.0f);
+		glTexCoord2f(1.0f, 1.0f); glVertex2f( 1.0f, 1.0f);
+		glTexCoord2f(0.0f, 1.0f); glVertex2f(-1.0f, 1.0f);
 	glEnd();
 
 	// Swap OpenGL frame buffers/Update Display 
-	SDL_GL_SwapBuffers();
+	SDL_GL_SwapBuffers();	
 }
 
 //************************************
@@ -260,7 +265,7 @@ void render()
 // Parameter: int argc
 // Parameter: char * argv
 //************************************
-int main( int argc, char * argv[] )
+int main( int argc, char* argv[] )
 {
 	if(!startup())
 	{
@@ -272,16 +277,16 @@ int main( int argc, char * argv[] )
 	// Save the start time for FPS calculations
 	timeStart = timeLast = SDL_GetTicks();
 
-	pixels = new Colour[screenWidth * screenHeight];
+	// Create Scene
+	scene = new Scene(screenWidth, screenHeight);
+	scene->camera->position.z = -5;
 
 	// Main Loop
 	while (running)
 	{
 		// Events
 		while (SDL_PollEvent( &event ))
-		{
 			handleEvent(&event);
-		}
 
 		// Update Stats
 		updateStats();
