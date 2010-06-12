@@ -89,7 +89,7 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				CommandLine="xcopy /y $(SolutionDir)..\build\dlls\*.dll $(SolutionDir)..\bin\$(ConfigurationName)&#x0D;&#x0A;xcopy /y $(SolutionDir)..\build\fonts\*.ttf $(SolutionDir)..\bin\$(ConfigurationName)\fonts\&#x0D;&#x0A;"
+				CommandLine="xcopy /y $(SolutionDir)..\build\dlls\*.dll $(SolutionDir)..\bin\$(ConfigurationName)&#x0D;&#x0A;"
 			/>
 		</Configuration>
 		<Configuration
@@ -167,7 +167,7 @@
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
-				CommandLine="xcopy /y $(SolutionDir)..\build\dlls\*.dll $(SolutionDir)..\bin\$(ConfigurationName)&#x0D;&#x0A;xcopy /y $(SolutionDir)..\build\fonts\*.ttf $(SolutionDir)..\bin\$(ConfigurationName)\fonts\&#x0D;&#x0A;"
+				CommandLine="xcopy /y $(SolutionDir)..\build\dlls\*.dll $(SolutionDir)..\bin\$(ConfigurationName)&#x0D;&#x0A;"
 			/>
 		</Configuration>
 	</Configurations>

@@ -38,7 +38,7 @@ int				timeLast = 0;
 //*****************************************************************************
 
 //************************************
-// Method:    startup - initialize OpenGL
+// Method:		startup - initialize OpenGL
 //************************************
 bool initializeOpenGL() 
 {
@@ -49,38 +49,46 @@ bool initializeOpenGL()
 		fprintf(stderr, "ERROR: %s\n", glewGetErrorString(status));
 	}
 
+	int glError = GL_NO_ERROR;
+
 	// OpenGL Settings
 	glClearColor(0, 0, 0, 1);
 	glShadeModel(GL_FLAT);
 	glEnable(GL_TEXTURE_2D);
+	glError = glGetError();
 
 	// Setup PBO
 	glGenBuffers(1, &pboId);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, screenWidth, screenHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+	glError = glGetError();
 
 	// No borders  
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);  
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);  
+	glError = glGetError();
 
 	// No bilinear filtering of texture  
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);  
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);  
+	glError = glGetError();
 
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboId); // Bind PBO
 	glBufferData(GL_PIXEL_UNPACK_BUFFER, screenWidth * screenHeight * 3, 0, GL_STREAM_DRAW); // Initialise PBO
+	glError = glGetError();
 
-	return (glGetError() != GL_NO_ERROR);
+	return (glGetError() == GL_NO_ERROR);
 }
 
 //************************************
-// Method:    startup - initialize stuff
+// Method:		startup - initialize stuff
+// Returns:		true on success, false otherwise
 //************************************
 bool startup()
 {
 	// Initialize SDL
 	if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
 	{
-		fprintf(stderr,"SDL initialization failed: %s\n",SDL_GetError());
+		fprintf(stderr, "ERROR: SDL initialization failed: %s\n",SDL_GetError());
 		return false;
 	}
 	
@@ -92,23 +100,23 @@ bool startup()
 
 	if ( screen == NULL )
 	{
-		fprintf(stderr,"Could NOT set (%d x %d x %d) video mode: %s\n", screenWidth, screenHeight, screenBitDepth, SDL_GetError());
+		fprintf(stderr, "ERROR: Could NOT set (%d x %d x %d) video mode: %s\n", screenWidth, screenHeight, screenBitDepth, SDL_GetError());
 		return false;
 	}
 
 	if (!initializeOpenGL())
 	{
-
+		fprintf(stderr, "ERROR: OpenGL initialization failed\n");
 	}
 	
-	printf("SDL & OpenGL initialization complete\n");
+	printf("INFO: SDL & OpenGL initialization complete\n");
 	return true;
 	
 }
 
 //************************************
-// Method:    handleKeyDown - handle the key which has been pressed
-// Parameter: SDLKey - the key to be handled
+// Method:		handleKeyDown - handle the key which has been pressed
+// Parameter:	SDLKey - the key to be handled
 //************************************
 void handleKeyDown(SDLKey key) 
 {
@@ -120,8 +128,8 @@ void handleKeyDown(SDLKey key)
 }
 
 //************************************
-// Method:    handleEvent - handle the given event
-// Parameter: SDL_Event *event - the event to be handled
+// Method:		handleEvent - handle the given event
+// Parameter:	SDL_Event *event - the event to be handled
 //************************************
 void handleEvent(SDL_Event* event) 
 {
@@ -129,18 +137,18 @@ void handleEvent(SDL_Event* event)
 	{
 	case SDL_QUIT:
 		running = false;
-		printf("Event! - SDL_QUIT\n");
+		printf("EVENT: SDL_QUIT\n");
 		break;
 
 	case SDL_KEYDOWN:
-		printf("Event! - SDL_KEYDOWN\n");
+		printf("EVENT: SDL_KEYDOWN\n");
 		handleKeyDown(event->key.keysym.sym);
 		break;
 	}
 }
 
 //************************************
-// Method:    shutdown - clean up before exit
+// Method:		shutdown - clean up before exit
 //************************************
 void shutdown()
 {
@@ -152,16 +160,16 @@ void shutdown()
 }
 
 //************************************
-// Method:    waitForEnter - wait for the user to press enter
+// Method:		waitForEnter - wait for the user to press enter
 //************************************
 void waitForEnter() 
 {
-	printf("\n\nPress [Enter] to continue...\n");
+	printf("\n\nINFO: Press [Enter] to continue...\n");
 	std::cin.get();
 }
 
 //************************************
-// Method:    updateStats - update window caption to display statistics
+// Method:		updateStats - update window caption to display statistics
 //************************************
 void updateStats()
 {
@@ -183,9 +191,67 @@ void updateStats()
 	SDL_WM_SetCaption(captionBuffer, NULL);
 }
 
-Colour trace (Ray r, GLuint depth)
+//************************************
+// Method:		trace - fire a ray
+// Returns:		
+// Parameter:	Ray r - the ray to be traced
+// Parameter:	GLuint depth - the current depth of the trace
+//************************************
+Primitive* trace (Ray& aRay, Colour& aColour, GLuint depth, float& aDistance)
 {
-	return Colour(0, 255, 0);
+	// Stop tracing after maximum trace depth is hit
+	if (depth > MAXTRACEDEPTH) return 0;
+
+	// Trace primary ray
+	aDistance = 1000000.0f;
+	Vector3 intersectionPoint;
+	Primitive* prim = 0;
+
+	// Find nearest intersection
+	for (int s = 0; s < scene->getPrimitivesCount(); s++)
+	{
+		Primitive* p = scene->getPrimitive(s);
+		if (p->intersect(aRay, aDistance) != MISS)
+		{
+			prim = p;
+		}
+	}
+
+	// No hit, terminate ray
+	if (!prim) return 0;
+
+	if (prim->isLight())
+	{
+		aColour = Colour(1.0f, 1.0f, 1.0f);
+	}
+	else
+	{
+		intersectionPoint = aRay.position + aRay.direction * aDistance;
+
+		for(int l = 0; l < scene->getPrimitivesCount(); l++)
+		{
+			Primitive* p = scene->getPrimitive(l);
+			if(p->isLight())
+			{
+				// Calculate diffuse shading
+				Vector3 L = ((Sphere*)p)->getCentre() - intersectionPoint;
+				NORMALIZE(L);
+				Vector3 N = prim->getNormal(intersectionPoint);
+				if (prim->getMaterial()->getDiffuse() > 0)
+				{
+					float dot = DOT(N, L);
+					if (dot > 0)
+					{
+						float diffuse = dot * prim->getMaterial()->getDiffuse();
+
+						aColour += diffuse * prim->getMaterial()->getColour() * p->getMaterial()->getColour();
+					}
+				}
+			}
+		}
+	}
+
+	return prim;
 }
 
 //************************************
@@ -193,7 +259,7 @@ Colour trace (Ray r, GLuint depth)
 //************************************
 void rayTrace(GLubyte* buffer)
 {
-	Camera* camera = scene->camera;
+	Camera* camera = scene->getCamera();
 	Vector3 origin = camera->position;
 
 	float x = origin.x;
@@ -219,17 +285,29 @@ void rayTrace(GLubyte* buffer)
 			Vector3 direction = Vector3(xpos, ypos, zpos) - origin;
 			direction.Normalize();
 
-			Colour result = trace(Ray(origin, direction), 0);
+			// Set up variables which will be used during the trace
+			Ray ray(origin, direction);
+			Colour colour(0, 0, 0);
+			float distance;
+			trace(ray, colour, 1, distance);
 
-			buffer[3 * (y * screenWidth + x)] = result.red;
-			buffer[3 * (y * screenWidth + x) + 1] = result.green;
-			buffer[3 * (y * screenWidth + x) + 2] = result.blue;
+			// Convert from float to int
+			int iRed = (int) (colour.red * 256);
+			int iGreen = (int) (colour.green * 256);
+			int iBlue = (int) (colour.blue * 256);
+			if (iRed > 255) iRed = 255;
+			if (iGreen > 255) iGreen = 255;
+			if (iBlue > 255) iBlue = 255;
+
+			buffer[3 * (y * screenWidth + x)] = iRed;
+			buffer[3 * (y * screenWidth + x) + 1] = iGreen;
+			buffer[3 * (y * screenWidth + x) + 2] = iBlue;
 		}
 	}
 }
 
 //************************************
-// Method:    render - render the pixels given
+// Method:		render - render the pixels given
 //************************************
 void render() 
 {
@@ -260,10 +338,10 @@ void render()
 }
 
 //************************************
-// Method:    main - program entry point
-// Returns:   0 for success 1 otherwise
-// Parameter: int argc
-// Parameter: char * argv
+// Method:		main - program entry point
+// Returns:		0 for success 1 otherwise
+// Parameter:	int argc
+// Parameter:	char * argv
 //************************************
 int main( int argc, char* argv[] )
 {
@@ -279,7 +357,8 @@ int main( int argc, char* argv[] )
 
 	// Create Scene
 	scene = new Scene(screenWidth, screenHeight);
-	scene->camera->position.z = -5;
+	scene->InitScene();
+	scene->getCamera()->position.z = -5;
 
 	// Main Loop
 	while (running)
