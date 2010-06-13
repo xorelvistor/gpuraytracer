@@ -220,34 +220,95 @@ Primitive* trace (Ray& aRay, Colour& aColour, GLuint depth, float& aDistance)
 	// No hit, terminate ray
 	if (!prim) return 0;
 
+	// Handle intersection
 	if (prim->isLight())
 	{
 		aColour = Colour(1.0f, 1.0f, 1.0f);
 	}
 	else
 	{
+		// Calculate intersection point
 		intersectionPoint = aRay.position + aRay.direction * aDistance;
 
 		for(int l = 0; l < scene->getPrimitivesCount(); l++)
 		{
 			Primitive* p = scene->getPrimitive(l);
+
 			if(p->isLight())
 			{
-				// Calculate diffuse shading
-				Vector3 L = ((Sphere*)p)->getCentre() - intersectionPoint;
-				NORMALIZE(L);
-				Vector3 N = prim->getNormal(intersectionPoint);
-				if (prim->getMaterial()->getDiffuse() > 0)
-				{
-					float dot = DOT(N, L);
-					if (dot > 0)
-					{
-						float diffuse = dot * prim->getMaterial()->getDiffuse();
+				Primitive* light = p;
 
-						aColour += diffuse * prim->getMaterial()->getColour() * p->getMaterial()->getColour();
+				//***********************************
+				// SHADOWS
+				//***********************************
+				float shade = 1.0f;
+				if (light->getType() == SPHERE)
+				{
+					Vector3 L = ((Sphere*) light)->getCentre() - intersectionPoint;
+					float distanceFromLight = LENGTH(L);
+					L *= (1.0f/distanceFromLight);
+					Ray r = Ray(intersectionPoint + L * EPSILON, L);
+
+					for(int s = 0; s < scene->getPrimitivesCount(); s++)
+					{
+						Primitive* p = scene->getPrimitive(s);
+						if( (p != light) && (p->intersect(r, distanceFromLight) != MISS))
+						{
+							shade = 0;
+							break;
+						}
+					}
+				}
+
+				if (shade > 0)
+				{
+					Vector3 L = ((Sphere*)light)->getCentre() - intersectionPoint;
+					NORMALIZE(L);
+					Vector3 N = prim->getNormal(intersectionPoint);
+
+					//***********************************
+					// DIFFUSE SHADING
+					//***********************************
+					if (prim->getMaterial()->getDiffuse() > 0)
+					{
+						float dot = DOT(L, N);
+						if (dot > 0)
+						{
+							float diffuse = dot * prim->getMaterial()->getDiffuse() * shade;
+							aColour += diffuse * prim->getMaterial()->getColour() * light->getMaterial()->getColour();
+						}
+					}
+
+					//***********************************
+					// SPECULAR SHADING
+					//***********************************
+					if (prim->getMaterial()->getSpecular() > 0)
+					{
+						Vector3 V = aRay.direction;
+						Vector3 R = L - 2.0f * DOT(L, N) * N;
+						float dot = DOT(V, R);
+						if (dot > 0)
+						{
+							float specular = powf(dot, 20) * prim->getMaterial()->getSpecular() * shade;
+							aColour += specular * light->getMaterial()->getColour();
+						}
 					}
 				}
 			}
+		}
+
+		//***********************************
+		// REFLECTION
+		//***********************************
+		float reflection = prim->getMaterial()->getReflection();
+		if(reflection > 0.0f && depth < MAXTRACEDEPTH)
+		{
+			Vector3 N = prim->getNormal(intersectionPoint);
+			Vector3 R = aRay.direction - 2.0f * DOT(aRay.direction, N) * N;
+			Colour reflectionColor(0, 0, 0);
+			float dist;
+			trace(Ray(intersectionPoint + R * EPSILON, R), reflectionColor, depth + 1, dist);
+			aColour += reflection * reflectionColor * prim->getMaterial()->getColour();
 		}
 	}
 
@@ -357,7 +418,7 @@ int main( int argc, char* argv[] )
 
 	// Create Scene
 	scene = new Scene(screenWidth, screenHeight);
-	scene->InitScene();
+	scene->InitScene1();
 	scene->getCamera()->position.z = -5;
 
 	// Main Loop

@@ -71,7 +71,7 @@ int Sphere::intersect(Ray& aRay, float& aDistance)
 
 	return returnValue;
 }
-void Scene::InitScene()
+void Scene::InitScene1()
 {
 	// Ground Plane
 	primitives[0] = new Plane( Vector3(0, 1, 0), 4.4f );
@@ -84,6 +84,7 @@ void Scene::InitScene()
 	primitives[1] = new Sphere( Vector3( 1, -0.8f, 3 ), 2.5f );
 	primitives[1]->setName( "Big Sphere" );
 	primitives[1]->getMaterial()->setReflection( 0.6f );
+	primitives[1]->getMaterial()->setSpecular( 0.4f );
 	primitives[1]->getMaterial()->setColour( Colour( 0.7f, 0.7f, 0.7f ) );
 
 	// Small Sphere
@@ -91,6 +92,7 @@ void Scene::InitScene()
 	primitives[2]->setName( "Small Sphere" );
 	primitives[2]->getMaterial()->setReflection( 1.0f );
 	primitives[2]->getMaterial()->setDiffuse( 0.1f );
+	primitives[2]->getMaterial()->setSpecular( 0.9f );
 	primitives[2]->getMaterial()->setColour( Colour( 0.7f, 0.7f, 1.0f ) );
 
 	// Light 1
@@ -107,5 +109,4 @@ void Scene::InitScene()
 
 	// Set Number of Primitives
 	countPrimitives = 5;
-
 }

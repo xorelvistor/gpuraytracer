@@ -11,17 +11,26 @@ class Material
 		void		setColour(Colour colour){ this->colour = colour; };
 		void		setDiffuse(float diffuse){ this->diffuse = diffuse; };
 		void		setReflection(float reflection){ this->reflection = reflection; };
+		void		setRefraction(float refraction){ this->refraction = refraction; };
+		void		setRefractionIndex(float refractionIndex){ this->refractionIndex = refractionIndex; };
+		void		setSpecular(float specular){ this->specular = specular; };
 
 		Colour		getColour(){ return colour; };
 		float		getDiffuse(){ return diffuse; };
 		float		getReflection(){ return reflection; };
+		float		getRefraction(){ return refraction; };
+		float		getRefractionIndex(){ return refractionIndex; };
+		float		getSpecular(){ return specular; };
 
 	protected:
 
 	private:
 		Colour		colour;
-		float		reflection;
 		float		diffuse;
+		float		reflection;
+		float		refraction;
+		float		refractionIndex;
+		float		specular;
 };
 
 class Primitive
@@ -40,6 +49,7 @@ class Primitive
 
 virtual int			intersect(Ray& aRay, float& aDistance) = 0;
 virtual Vector3		getNormal(Vector3& position) = 0;
+virtual int			getType() = 0;
 
 	protected:
 		bool		light;
@@ -59,6 +69,7 @@ class Sphere : public Primitive
 		float		getSqRadius(){ return sqRadius; };
 		int			intersect(Ray& aRay, float& aDistance);
 		Vector3		getNormal(Vector3& position){ return (position - centre) * rRadius; };
+		int			getType(){ return SPHERE; };
 
 	protected:
 
@@ -78,6 +89,7 @@ class Plane : public Primitive
 		Vector3		getNormal(){ return normal; };
 		int			intersect(Ray& aRay, float& aDistance);
 		Vector3		getNormal(Vector3& position){ return normal; };
+		int			getType(){ return PLANE; };
 
 	protected:
 
@@ -95,7 +107,7 @@ class Scene
 		Camera*		getCamera(){ return camera; };
 		int			getPrimitivesCount(){ return countPrimitives; };
 		Primitive*	getPrimitive(int index){ return primitives[index]; };
-		void		InitScene();
+		void		InitScene1();
 
 	protected:
 
