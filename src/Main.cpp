@@ -197,7 +197,7 @@ void updateStats()
 // Parameter:	Ray r - the ray to be traced
 // Parameter:	GLuint depth - the current depth of the trace
 //************************************
-Primitive* trace (Ray& aRay, Colour& aColour, GLuint depth, float& aDistance)
+Primitive* trace (Ray& aRay, Colour& aColour, GLuint depth, float aRefractionIndex, float& aDistance)
 {
 	// Stop tracing after maximum trace depth is hit
 	if (depth > MAXTRACEDEPTH) return 0;
@@ -206,14 +206,17 @@ Primitive* trace (Ray& aRay, Colour& aColour, GLuint depth, float& aDistance)
 	aDistance = 1000000.0f;
 	Vector3 intersectionPoint;
 	Primitive* prim = 0;
+	int intersectionResult = MISS;
 
 	// Find nearest intersection
 	for (int s = 0; s < scene->getPrimitivesCount(); s++)
 	{
 		Primitive* p = scene->getPrimitive(s);
-		if (p->intersect(aRay, aDistance) != MISS)
+		int r = p->intersect(aRay, aDistance);
+		if (r != MISS)
 		{
 			prim = p;
+			intersectionResult = r;
 		}
 	}
 
@@ -307,8 +310,37 @@ Primitive* trace (Ray& aRay, Colour& aColour, GLuint depth, float& aDistance)
 			Vector3 R = aRay.direction - 2.0f * DOT(aRay.direction, N) * N;
 			Colour reflectionColor(0, 0, 0);
 			float dist;
-			trace(Ray(intersectionPoint + R * EPSILON, R), reflectionColor, depth + 1, dist);
+			trace(Ray(intersectionPoint + R * EPSILON, R), reflectionColor, depth + 1, aRefractionIndex, dist);
 			aColour += reflection * reflectionColor * prim->getMaterial()->getColour();
+		}
+
+		//***********************************
+		// REFRACTION
+		//***********************************
+		float refraction = prim->getMaterial()->getRefraction();
+		if (refraction > 0 && depth < MAXTRACEDEPTH)
+		{
+			float refractionIndex = prim->getMaterial()->getRefractiveIndex();
+			float refractionRatio = aRefractionIndex / refractionIndex;
+			Vector3 N = prim->getNormal(intersectionPoint) * (float) intersectionResult;
+			float cosI = -DOT(N, aRay.direction);
+			float cosT2 = 1.0f - refractionRatio * refractionRatio * (1.0f - cosI * cosI);
+			if(cosT2 > 0.0f)
+			{
+				Vector3 T = (refractionRatio * aRay.direction) + (refractionRatio * cosI - sqrtf(cosT2)) * N;
+				Colour refractionColour(0, 0, 0);
+				float refractionDistance;
+				trace(Ray(intersectionPoint + T * EPSILON, T), refractionColour, depth + 1, refractionIndex, refractionDistance);
+
+				//***********************************
+				// Beer-Lambert Law
+				//***********************************
+				Colour absorbance = prim->getMaterial()->getColour() * prim->getMaterial()->getAbsorptionCoefficient() * -refractionDistance;
+				Colour transparency = Colour( expf(absorbance.red),
+											  expf(absorbance.green),
+											  expf(absorbance.blue) );
+				aColour += refractionColour * transparency;
+			}
 		}
 	}
 
@@ -350,7 +382,7 @@ void rayTrace(GLubyte* buffer)
 			Ray ray(origin, direction);
 			Colour colour(0, 0, 0);
 			float distance;
-			trace(ray, colour, 1, distance);
+			trace(ray, colour, 1, 1.0f, distance);
 
 			// Convert from float to int
 			int iRed = (int) (colour.red * 256);
@@ -418,7 +450,9 @@ int main( int argc, char* argv[] )
 
 	// Create Scene
 	scene = new Scene(screenWidth, screenHeight);
-	scene->InitScene1();
+	scene->InitSceneCornellBox();
+	//scene->InitScene2();
+	///scene->InitScene1();
 	scene->getCamera()->position.z = -5;
 
 	// Main Loop

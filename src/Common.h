@@ -49,9 +49,9 @@ enum PrimitiveType
 
 enum IntersectionType
 {
-	HIT,
-	MISS,
-	INSIDE
+	INSIDE = -1,
+	MISS = 0,
+	HIT = 1
 };
 
 //*****************************************************************************

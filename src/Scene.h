@@ -6,25 +6,33 @@
 class Material
 {
 	public:
-		Material() : colour(0.5f, 0.5f, 0.5f), reflection(0), diffuse(0.2f){};
+		Material() :colour(0.5f, 0.5f, 0.5f),
+					reflection(0),
+					diffuse(0.2f),
+					absorptionCoefficient(0),
+					refraction(0),
+					refractionIndex(1.0f){};
 
+		void		setAbsorptionCoefficient(float absorptionCoefficient){ this->absorptionCoefficient = absorptionCoefficient; };
 		void		setColour(Colour colour){ this->colour = colour; };
 		void		setDiffuse(float diffuse){ this->diffuse = diffuse; };
 		void		setReflection(float reflection){ this->reflection = reflection; };
 		void		setRefraction(float refraction){ this->refraction = refraction; };
-		void		setRefractionIndex(float refractionIndex){ this->refractionIndex = refractionIndex; };
+		void		setRefractiveIndex(float refractionIndex){ this->refractionIndex = refractionIndex; };
 		void		setSpecular(float specular){ this->specular = specular; };
 
+		float		getAbsorptionCoefficient(){ return absorptionCoefficient; };
 		Colour		getColour(){ return colour; };
 		float		getDiffuse(){ return diffuse; };
 		float		getReflection(){ return reflection; };
 		float		getRefraction(){ return refraction; };
-		float		getRefractionIndex(){ return refractionIndex; };
+		float		getRefractiveIndex(){ return refractionIndex; };
 		float		getSpecular(){ return specular; };
 
 	protected:
 
 	private:
+		float		absorptionCoefficient;
 		Colour		colour;
 		float		diffuse;
 		float		reflection;
@@ -108,6 +116,8 @@ class Scene
 		int			getPrimitivesCount(){ return countPrimitives; };
 		Primitive*	getPrimitive(int index){ return primitives[index]; };
 		void		InitScene1();
+		void		InitScene2();
+		void		InitSceneCornellBox();
 
 	protected:
 
