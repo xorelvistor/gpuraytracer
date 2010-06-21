@@ -3,8 +3,16 @@
 #include <cmath>
 #include <math.h>
 #include <iostream>
-#include <SDL.h>
-#include <glew.h>
+#include <utility>
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
+#include <string>
+#include <iterator>
+
+#include <SDL/SDL.h>
+#include <GL/glew.h>
+#include <CL/cl.hpp>
 
 #include "Vector3.h"
 
@@ -21,6 +29,9 @@
 #define MAXTRACEDEPTH		6
 
 #define PI				3.141592653589793238462f
+
+#define __NO_STD_VECTOR // Use cl::vector
+#define __NO_STD_STRING // Use cl::string
 
 //*****************************************************************************
 // Enumerators
