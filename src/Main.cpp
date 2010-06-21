@@ -1,4 +1,7 @@
 #include "Common.h"
+#include "IRayTracer.h"
+#include "RayTracerCPU.h"
+#include "RayTracerOpenCL.h"
 #include "Scene.h"
 
 using namespace std;
@@ -8,46 +11,45 @@ using namespace std;
 //*****************************************************************************
 
 // Tracer variables
-bool			running = true;
-GLuint			maxDepth = 1;
-GLuint			pboId;
-GLuint			screenWidth = 1024;
-GLuint			screenHeight = 768;
-GLuint			screenBitDepth = 32;
-Scene*			scene = NULL;
+bool				running = true;
+GLuint				maxDepth = 1;
+GLuint				pboId;
+GLuint				screenWidth = 640;
+GLuint				screenHeight = 480;
+GLuint				screenBitDepth = 32;
+Scene*				scene = NULL;
+IRayTracer*			tracer;
 
 // OpenGL variables
-GLuint			textures;
-GLubyte*		buffer;
+GLuint				textures;
+float*				buffer;
 
 // SDL variables
-SDL_Event		event;
-SDL_Surface*	screen;
+SDL_Event			event;
+SDL_Surface*		screen;
 
 // FPS variables
-int				fpsUpdateRate = 100; // FPS update rate (ms)
-double			fpsCurrent = 0.0;
-double			fpsAverage = 0.0;
-int				framesSinceStart = 0;	
-int				framesSinceLast = 0;
-int				timeStart = 0;
-int				timeLast = 0;
+int					fpsUpdateRate = 100; // FPS update rate (ms)
+double				fpsCurrent = 0.0;
+double				fpsAverage = 0.0;
+int					framesSinceStart = 0;	
+int					framesSinceLast = 0;
+int					timeStart = 0;
+int					timeLast = 0;
 
 //*****************************************************************************
 // METHODS
 //*****************************************************************************
 
 //************************************
-// Method:		startup - initialize OpenGL
+// Method:		initializeOpenGL - initialize OpenGL
+// Returns:		true on success, false otherwise
 //************************************
 bool initializeOpenGL() 
 {
-	// Initialise GLEW
+	// Initialize GLEW
 	GLenum status = glewInit();
-	if (status != GLEW_OK)
-	{
-		fprintf(stderr, "ERROR: %s\n", glewGetErrorString(status));
-	}
+	if ( status != GLEW_OK ) { fprintf(stderr, "ERROR: %s\n", glewGetErrorString(status)); }
 
 	int glError = GL_NO_ERROR;
 
@@ -59,7 +61,7 @@ bool initializeOpenGL()
 
 	// Setup PBO
 	glGenBuffers(1, &pboId);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, screenWidth, screenHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, screenWidth, screenHeight, 0, GL_RGBA, GL_FLOAT, 0);
 	glError = glGetError();
 
 	// No borders  
@@ -73,7 +75,7 @@ bool initializeOpenGL()
 	glError = glGetError();
 
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboId); // Bind PBO
-	glBufferData(GL_PIXEL_UNPACK_BUFFER, screenWidth * screenHeight * 3, 0, GL_STREAM_DRAW); // Initialise PBO
+	glBufferData(GL_PIXEL_UNPACK_BUFFER, screenWidth * screenHeight * 4 * sizeof(float), 0, GL_STREAM_DRAW); // Initialise PBO
 	glError = glGetError();
 
 	return (glGetError() == GL_NO_ERROR);
@@ -88,7 +90,7 @@ bool startup()
 	// Initialize SDL
 	if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
 	{
-		fprintf(stderr, "ERROR: SDL initialization failed: %s\n",SDL_GetError());
+		fprintf(stderr, "ERROR: Failed to initialize SDL: %s\n",SDL_GetError());
 		return false;
 	}
 	
@@ -104,12 +106,15 @@ bool startup()
 		return false;
 	}
 
+	fprintf(stderr, "INFO: SDL Initialization Complete\n");
+
 	if (!initializeOpenGL())
 	{
-		fprintf(stderr, "ERROR: OpenGL initialization failed\n");
+		fprintf(stderr, "ERROR: Failed to initialize OpenGL\n");
+		return false;
 	}
-	
-	printf("INFO: SDL & OpenGL initialization complete\n");
+
+	fprintf(stderr, "INFO: OpenGL Initialization Complete\n");
 	return true;
 	
 }
@@ -137,11 +142,11 @@ void handleEvent(SDL_Event* event)
 	{
 	case SDL_QUIT:
 		running = false;
-		printf("EVENT: SDL_QUIT\n");
+		fprintf(stderr, "EVENT: SDL_QUIT\n");
 		break;
 
 	case SDL_KEYDOWN:
-		printf("EVENT: SDL_KEYDOWN\n");
+		fprintf(stderr, "EVENT: SDL_KEYDOWN\n");
 		handleKeyDown(event->key.keysym.sym);
 		break;
 	}
@@ -164,7 +169,7 @@ void shutdown()
 //************************************
 void waitForEnter() 
 {
-	printf("\n\nINFO: Press [Enter] to continue...\n");
+	fprintf(stderr, "INFO: Press [Enter] to continue...\n");
 	std::cin.get();
 }
 
@@ -192,214 +197,6 @@ void updateStats()
 }
 
 //************************************
-// Method:		trace - fire a ray
-// Returns:		
-// Parameter:	Ray r - the ray to be traced
-// Parameter:	GLuint depth - the current depth of the trace
-//************************************
-Primitive* trace (Ray& aRay, Colour& aColour, GLuint depth, float aRefractionIndex, float& aDistance)
-{
-	// Stop tracing after maximum trace depth is hit
-	if (depth > MAXTRACEDEPTH) return 0;
-
-	// Trace primary ray
-	aDistance = 1000000.0f;
-	Vector3 intersectionPoint;
-	Primitive* prim = 0;
-	int intersectionResult = MISS;
-
-	// Find nearest intersection
-	for (int s = 0; s < scene->getPrimitivesCount(); s++)
-	{
-		Primitive* p = scene->getPrimitive(s);
-		int r = p->intersect(aRay, aDistance);
-		if (r != MISS)
-		{
-			prim = p;
-			intersectionResult = r;
-		}
-	}
-
-	// No hit, terminate ray
-	if (!prim) return 0;
-
-	// Handle intersection
-	if (prim->isLight())
-	{
-		aColour = Colour(1.0f, 1.0f, 1.0f);
-	}
-	else
-	{
-		// Calculate intersection point
-		intersectionPoint = aRay.position + aRay.direction * aDistance;
-
-		for(int l = 0; l < scene->getPrimitivesCount(); l++)
-		{
-			Primitive* p = scene->getPrimitive(l);
-
-			if(p->isLight())
-			{
-				Primitive* light = p;
-
-				//***********************************
-				// SHADOWS
-				//***********************************
-				float shade = 1.0f;
-				if (light->getType() == SPHERE)
-				{
-					Vector3 L = ((Sphere*) light)->getCentre() - intersectionPoint;
-					float distanceFromLight = LENGTH(L);
-					L *= (1.0f/distanceFromLight);
-					Ray r = Ray(intersectionPoint + L * EPSILON, L);
-
-					for(int s = 0; s < scene->getPrimitivesCount(); s++)
-					{
-						Primitive* p = scene->getPrimitive(s);
-						if( (p != light) && (p->intersect(r, distanceFromLight) != MISS))
-						{
-							shade = 0;
-							break;
-						}
-					}
-				}
-
-				if (shade > 0)
-				{
-					Vector3 L = ((Sphere*)light)->getCentre() - intersectionPoint;
-					NORMALIZE(L);
-					Vector3 N = prim->getNormal(intersectionPoint);
-
-					//***********************************
-					// DIFFUSE SHADING
-					//***********************************
-					if (prim->getMaterial()->getDiffuse() > 0)
-					{
-						float dot = DOT(L, N);
-						if (dot > 0)
-						{
-							float diffuse = dot * prim->getMaterial()->getDiffuse() * shade;
-							aColour += diffuse * prim->getMaterial()->getColour() * light->getMaterial()->getColour();
-						}
-					}
-
-					//***********************************
-					// SPECULAR SHADING
-					//***********************************
-					if (prim->getMaterial()->getSpecular() > 0)
-					{
-						Vector3 V = aRay.direction;
-						Vector3 R = L - 2.0f * DOT(L, N) * N;
-						float dot = DOT(V, R);
-						if (dot > 0)
-						{
-							float specular = powf(dot, 20) * prim->getMaterial()->getSpecular() * shade;
-							aColour += specular * light->getMaterial()->getColour();
-						}
-					}
-				}
-			}
-		}
-
-		//***********************************
-		// REFLECTION
-		//***********************************
-		float reflection = prim->getMaterial()->getReflection();
-		if(reflection > 0.0f && depth < MAXTRACEDEPTH)
-		{
-			Vector3 N = prim->getNormal(intersectionPoint);
-			Vector3 R = aRay.direction - 2.0f * DOT(aRay.direction, N) * N;
-			Colour reflectionColor(0, 0, 0);
-			float dist;
-			trace(Ray(intersectionPoint + R * EPSILON, R), reflectionColor, depth + 1, aRefractionIndex, dist);
-			aColour += reflection * reflectionColor * prim->getMaterial()->getColour();
-		}
-
-		//***********************************
-		// REFRACTION
-		//***********************************
-		float refraction = prim->getMaterial()->getRefraction();
-		if (refraction > 0 && depth < MAXTRACEDEPTH)
-		{
-			float refractionIndex = prim->getMaterial()->getRefractiveIndex();
-			float refractionRatio = aRefractionIndex / refractionIndex;
-			Vector3 N = prim->getNormal(intersectionPoint) * (float) intersectionResult;
-			float cosI = -DOT(N, aRay.direction);
-			float cosT2 = 1.0f - refractionRatio * refractionRatio * (1.0f - cosI * cosI);
-			if(cosT2 > 0.0f)
-			{
-				Vector3 T = (refractionRatio * aRay.direction) + (refractionRatio * cosI - sqrtf(cosT2)) * N;
-				Colour refractionColour(0, 0, 0);
-				float refractionDistance;
-				trace(Ray(intersectionPoint + T * EPSILON, T), refractionColour, depth + 1, refractionIndex, refractionDistance);
-
-				//***********************************
-				// Beer-Lambert Law
-				//***********************************
-				Colour absorbance = prim->getMaterial()->getColour() * prim->getMaterial()->getAbsorptionCoefficient() * -refractionDistance;
-				Colour transparency = Colour( expf(absorbance.red),
-											  expf(absorbance.green),
-											  expf(absorbance.blue) );
-				aColour += refractionColour * transparency;
-			}
-		}
-	}
-
-	return prim;
-}
-
-//************************************
-// Method:    rayTrace - ray trace
-//************************************
-void rayTrace(GLubyte* buffer)
-{
-	Camera* camera = scene->getCamera();
-	Vector3 origin = camera->position;
-
-	float x = origin.x;
-	float y = origin.y;
-	float z = origin.z;
-
-	float left = camera->spXLeft;
-	float right = camera->spXRight;
-	float top = camera->spYTop;
-	float bottom = camera->spYBottom;
-
-	float deltaX = (right - left) / screenWidth;
-	float deltaY = (top - bottom) / screenHeight;
-
-	for(GLuint y = 0; y < screenHeight; y++)
-	{
-		for(GLuint x = 0; x < screenWidth; x++)
-		{
-			float xpos = left + x * deltaX;
-			float ypos = bottom + y * deltaY;
-			float zpos = 0;
-
-			Vector3 direction = Vector3(xpos, ypos, zpos) - origin;
-			direction.Normalize();
-
-			// Set up variables which will be used during the trace
-			Ray ray(origin, direction);
-			Colour colour(0, 0, 0);
-			float distance;
-			trace(ray, colour, 1, 1.0f, distance);
-
-			// Convert from float to int
-			int iRed = (int) (colour.red * 256);
-			int iGreen = (int) (colour.green * 256);
-			int iBlue = (int) (colour.blue * 256);
-			if (iRed > 255) iRed = 255;
-			if (iGreen > 255) iGreen = 255;
-			if (iBlue > 255) iBlue = 255;
-
-			buffer[3 * (y * screenWidth + x)] = iRed;
-			buffer[3 * (y * screenWidth + x) + 1] = iGreen;
-			buffer[3 * (y * screenWidth + x) + 2] = iBlue;
-		}
-	}
-}
-
-//************************************
 // Method:		render - render the pixels given
 //************************************
 void render() 
@@ -408,14 +205,14 @@ void render()
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboId);
 
 	// Lock Buffer
-	buffer = (GLubyte *) glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
+	buffer = (float *) glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
 
 	// Trace the scene
-	rayTrace(buffer);
+	tracer->rayTrace(buffer);
 
 	// Unlock Buffer
 	glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, screenWidth, screenHeight, GL_RGB, GL_UNSIGNED_BYTE, 0);
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, screenWidth, screenHeight, GL_RGBA, GL_FLOAT, 0);
 
 	// Output Buffer
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -427,7 +224,7 @@ void render()
 	glEnd();
 
 	// Swap OpenGL frame buffers/Update Display 
-	SDL_GL_SwapBuffers();	
+	SDL_GL_SwapBuffers();
 }
 
 //************************************
@@ -450,10 +247,21 @@ int main( int argc, char* argv[] )
 
 	// Create Scene
 	scene = new Scene(screenWidth, screenHeight);
-	scene->InitSceneCornellBox();
-	//scene->InitScene2();
-	///scene->InitScene1();
+	// scene->initSceneCornellBox();
+	scene->initSimple();
 	scene->getCamera()->position.z = -5;
+
+	// tracer = new RayTracerCPU();
+	tracer = new RayTracerOpenCL();
+	tracer->setScene(scene);
+	tracer->setScreenSize(screenWidth, screenHeight);
+	
+	if (!tracer->initialize())
+	{
+		shutdown();
+		waitForEnter();
+		return -1;
+	}
 
 	// Main Loop
 	while (running)
@@ -468,6 +276,8 @@ int main( int argc, char* argv[] )
 		// Rendering
 		render();
 	}
+
+	// waitForEnter();
 
 	shutdown();
 

@@ -115,9 +115,10 @@ class Scene
 		Camera*		getCamera(){ return camera; };
 		int			getPrimitivesCount(){ return countPrimitives; };
 		Primitive*	getPrimitive(int index){ return primitives[index]; };
-		void		InitScene1();
-		void		InitScene2();
-		void		InitSceneCornellBox();
+		void		initScene1();
+		void		initScene2();
+		void		initSceneCornellBox();
+		void		initSimple();
 
 	protected:
 

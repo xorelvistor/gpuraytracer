@@ -71,7 +71,7 @@ int Sphere::intersect(Ray& aRay, float& aDistance)
 
 	return returnValue;
 }
-void Scene::InitScene1()
+void Scene::initScene1()
 {
 	// Ground Plane
 	primitives[0] = new Plane( Vector3(0, 1, 0), 4.4f );
@@ -111,7 +111,7 @@ void Scene::InitScene1()
 	countPrimitives = 5;
 }
 
-void Scene::InitScene2()
+void Scene::initScene2()
 {
 	primitives[0] = new Plane( Vector3( 0, 1, 0 ), 4.4f );
 	primitives[0]->setName( "Ground Plane" );
@@ -180,41 +180,41 @@ void Scene::InitScene2()
 	countPrimitives = prim;
 };
 
-void Scene::InitSceneCornellBox()
+void Scene::initSceneCornellBox()
 {
 	primitives[0] = new Plane( Vector3(0, 1, 0), 4.4f );
 	primitives[0]->setName( "Ground Plane" );
 	primitives[0]->getMaterial()->setReflection( 0 );
-	primitives[0]->getMaterial()->setDiffuse( 1.0f );
+	primitives[0]->getMaterial()->setDiffuse( 0.2f );
 	primitives[0]->getMaterial()->setSpecular( 0.5f );
 	primitives[0]->getMaterial()->setColour( Colour( 1.0f, 1.0f, 1.0f ) );
 
 	primitives[1] = new Plane( Vector3(0, -1, 0), 4.4f );
 	primitives[1]->setName( "Ceiling Plane" );
 	primitives[1]->getMaterial()->setReflection( 0 );
-	primitives[1]->getMaterial()->setDiffuse( 1.0f );
+	primitives[1]->getMaterial()->setDiffuse( 0.2f );
 	primitives[1]->getMaterial()->setSpecular( 0.5f );
 	primitives[1]->getMaterial()->setColour( Colour( 1.0f, 1.0f, 1.0f ) );
 
 	primitives[2] = new Plane( Vector3(0, 0, -1), 7.4f );
 	primitives[2]->setName( "Back Plane" );
 	primitives[2]->getMaterial()->setReflection( 0 );
-	primitives[2]->getMaterial()->setDiffuse( 1.0f );
+	primitives[2]->getMaterial()->setDiffuse( 0.2f );
 	primitives[2]->getMaterial()->setSpecular( 0.5f );
-	primitives[2]->getMaterial()->setColour( Colour( 0.0f, 1.0f, 0.0f ) );
+	primitives[2]->getMaterial()->setColour( Colour( 1.0f, 1.0f, 1.0f ) );
 
 	primitives[3] = new Plane( Vector3(0, 0, 1), 7.4f );
 	primitives[3]->setName( "Front Plane" );
 	primitives[3]->getMaterial()->setReflection( 0 );
-	primitives[3]->getMaterial()->setDiffuse( 1.0f );
+	primitives[3]->getMaterial()->setDiffuse( 0.2f );
 	primitives[3]->getMaterial()->setSpecular( 0.5f );
 	primitives[3]->getMaterial()->setColour( Colour( 0.0f, 0.0f, 0.0f ) );
 
 	primitives[4] = new Plane( Vector3(1, 0, 0), 4.4f );
 	primitives[4]->setName( "Left Plane" );
 	primitives[4]->getMaterial()->setReflection( 0 );
-	primitives[4]->getMaterial()->setDiffuse( 1.0f );
-	primitives[4]->getMaterial()->setSpecular( 0.5f );
+	primitives[4]->getMaterial()->setDiffuse( 0.5f );
+	primitives[4]->getMaterial()->setSpecular( 1.0f );
 	primitives[4]->getMaterial()->setColour( Colour( 1.0f, 0.0f, 0.0f ) );
 
 	primitives[5] = new Plane( Vector3(-1, 0, 0), 4.4f );
@@ -226,15 +226,18 @@ void Scene::InitSceneCornellBox()
 
 	primitives[6] = new Sphere( Vector3(-2, -2.8f, 4), 1.25f);
 	primitives[6]->setName( "Mirror Sphere");
-	primitives[6]->getMaterial()->setReflection( 1.0f );
+	primitives[6]->getMaterial()->setReflection( 0.5f );
 	primitives[6]->getMaterial()->setSpecular( 0.7f );
+	primitives[6]->getMaterial()->setDiffuse( 0.5f );
 	primitives[6]->getMaterial()->setColour( Colour( 0.75f, 0.75f, 0.75f ) );
 	
 	primitives[7] = new Sphere( Vector3(2, -2.8f, 3), 1.25f);
-	primitives[7]->setName( "Mirror Sphere");
-	primitives[7]->getMaterial()->setReflection( 1.0f);
-	primitives[7]->getMaterial()->setSpecular( 0.5f );
-	primitives[7]->getMaterial()->setColour( Colour( 0.75f, 0.75f, 0.75f ) );
+	primitives[7]->setName( "Diffuse Sphere");
+	primitives[7]->getMaterial()->setReflection( 0.0f );
+	primitives[7]->getMaterial()->setRefraction( 0.0f );
+	primitives[7]->getMaterial()->setRefractiveIndex( 1.0f );
+	primitives[7]->getMaterial()->setDiffuse( 1.0f );
+	primitives[7]->getMaterial()->setColour( Colour( 0.0f, 1.0f, 0.0f ) );
 
 	// Light Source
 	primitives[8] = new Sphere( Vector3( 0, 2.2f, 0 ), 0.05f );
@@ -242,4 +245,32 @@ void Scene::InitSceneCornellBox()
 	primitives[8]->getMaterial()->setColour( Colour( 1.0f, 1.0f, 1.0f ) );
 
 	countPrimitives = 9;
+}
+
+void Scene::initSimple()
+{
+	primitives[0] = new Sphere( Vector3(-2, -2.8f, 4), 1.25f);
+	primitives[0]->setName( "Mirror Sphere");
+	primitives[0]->getMaterial()->setSpecular( 0.7f );
+	primitives[0]->getMaterial()->setReflection( 0.4f );
+	primitives[0]->getMaterial()->setRefraction( 0.5f );
+	primitives[0]->getMaterial()->setRefractiveIndex( 1.33f );
+	primitives[0]->getMaterial()->setAbsorptionCoefficient( 0.15f );
+	primitives[0]->getMaterial()->setColour( Colour( 0.0f, 1.0f, 0.0f ) );
+
+	primitives[1] = new Sphere( Vector3(2, -2.8f, 3), 1.25f);
+	primitives[1]->setName( "Mirror Sphere");
+	primitives[1]->getMaterial()->setSpecular( 0.5f );
+	primitives[1]->getMaterial()->setReflection( 0.4f );
+	primitives[1]->getMaterial()->setRefraction( 0.5f );
+	primitives[1]->getMaterial()->setRefractiveIndex( 1.33f );
+	primitives[1]->getMaterial()->setAbsorptionCoefficient( 0.15f );
+	primitives[1]->getMaterial()->setColour( Colour( 0.0f, 1.0f, 1.0f ) );
+
+	// Light Source
+	primitives[2] = new Sphere( Vector3( 0, 2.2f, 0 ), 0.05f );
+	primitives[2]->setLight( true );
+	primitives[2]->getMaterial()->setColour( Colour( 1.0f, 1.0f, 1.0f ) );
+
+	countPrimitives = 3;
 }
